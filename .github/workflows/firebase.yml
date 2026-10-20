@@ -27,6 +27,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Testar contagem de gols e assistencias
+        run: node --test scripts/testar-152.mjs
+      - name: Gerar interface 1.5.2
+        run: node scripts/preparar-152.mjs
       - name: Conferir site e JavaScript
         run: node scripts/validar-site.mjs
       - name: Instalar Firebase CLI
@@ -45,6 +49,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Gerar interface 1.5.2
+        run: node scripts/preparar-152.mjs
       - name: Conferir site antes de publicar
         run: node scripts/validar-site.mjs
       - name: Instalar Firebase CLI

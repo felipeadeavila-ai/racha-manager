@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import {estatisticasJogo} from './estatisticas-jogo.mjs';
+const file = 'public/index.html';
+let html = fs.readFileSync(file, 'utf8');
+if (!html.includes('/* RM_UI_151 */')) throw Error('Base de interface 1.5.1 não encontrada');
+if (!/versão 1\.5\.[12]</u.test(html)) throw Error('Confira a versão base antes de gerar a 1.5.2');
+html = html.replace(/<script id="rm-ui-152">[\s\S]*?<\/script>\s*/g, '');
+html = html.replaceAll('versão 1.5.1', 'versão 1.5.2').replaceAll('>v1.5.1<', '>v1.5.2<');
+const code = estatisticasJogo.toString() + '\n' + fs.readFileSync('src/ui-152.js', 'utf8');
+if (!html.includes('</body>')) throw Error('HTML sem fechamento de body');
+html = html.replace('</body>', '<script id="rm-ui-152">\n'+code+'\n</script>\n</body>');
+fs.writeFileSync(file, html);
+console.log('Interface 1.5.2 gerada; login e menu de som da 1.5.1 preservados.');
