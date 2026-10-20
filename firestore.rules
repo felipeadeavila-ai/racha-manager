@@ -1,0 +1,129 @@
+// RM_RULES_151
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null && request.auth.token.get('email_verified', false) == true && request.auth.token.get('email', '') is string; }
+  function mail() { return request.auth.token.email.lower(); }
+  function fixedAdmin() { return signedIn() && mail() == 'felipeadeavila@gmail.com'; }
+  function mgrPath() { return /databases/$(database)/documents/managers/$(mail()); }
+  function isMgr() { return fixedAdmin() || (signedIn() && exists(mgrPath())); }
+  function role() { return fixedAdmin() ? 'admin' : get(mgrPath()).data.role; }
+  function isAdmin() { return isMgr() && role() == 'admin'; }
+  function isOrg() { return isMgr() && role() in ['admin','org']; }
+  function anonymous() { return request.auth != null && request.auth.token.firebase.sign_in_provider == 'anonymous'; }
+  function gamePath() { return /databases/$(database)/documents/live/game; }
+  function oldRevision() { return exists(gamePath()) ? get(gamePath()).data.get('lrev', 0) : 0; }
+  function validG(g) {
+   let conf = get(/databases/$(database)/documents/app/state).data.conf;
+   return g is map && g.keys().hasOnly(['a','b','dur','left','run','end','ev','ra','rb','subs'])
+    && g.keys().hasAll(['a','b','dur','left','run','end','ev','ra','rb','subs'])
+    && conf is map && conf.k is int && conf.k >= 2 && conf.k <= 4
+    && g.a is int && g.a >= 0 && g.a < conf.k
+    && g.b is int && g.b >= 0 && g.b < conf.k && g.a != g.b
+    && g.dur is int && g.dur >= 60 && g.dur <= 7200
+    && g.left is int && g.left >= 0 && g.left <= g.dur
+    && g.run is bool && g.end is number && g.end >= 0
+    && g.ev is list && g.ev.size() <= 200
+    && g.subs is list && g.subs.size() <= 200
+    && (g.ra == null || (g.ra is list && g.ra.size() <= 100))
+    && (g.rb == null || (g.rb is list && g.rb.size() <= 100));
+  }
+  function validAction(a) {
+   return a is map && a.keys().hasOnly(['uid','name','device','anonymous','logId','historyId','ts','m'])
+    && a.keys().hasAll(['uid','name','device','anonymous','logId','historyId','ts','m'])
+    && a.uid == request.auth.uid
+    && a.name is string && a.name.size() >= 2 && a.name.size() <= 60
+    && a.device is string && a.device.size() == 6
+    && a.anonymous == anonymous()
+    && a.logId is string && a.logId.matches('^[A-Za-z0-9_-]{1,100}$')
+    && a.historyId is string && (a.historyId == '' || a.historyId.matches('^[A-Za-z0-9_-]{1,100}$'))
+    && a.ts == request.time
+    && a.m is string && a.m.size() > 0 && a.m.size() <= 500;
+  }
+  function sameAction(a, b) {
+   return a.uid == b.uid && a.name == b.name && a.device == b.device
+    && a.anonymous == b.anonymous && a.logId == b.logId && a.historyId == b.historyId && a.ts == b.ts && a.m == b.m;
+  }
+  function validAudit(d, id) {
+   let after = getAfter(gamePath()).data;
+   return d.keys().hasOnly(['uid','name','device','anonymous','logId','historyId','ts','m','kind','revision','u'])
+    && d.keys().hasAll(['uid','name','device','anonymous','logId','historyId','ts','m','kind','revision','u'])
+    && d.kind == 'game' && d.logId == id
+    && d.uid == request.auth.uid && d.ts == request.time
+    && d.revision == after.lrev && d.revision == oldRevision() + 1
+    && d.u == d.name + ' (' + d.device + ')'
+    && validAction(after.lastAction) && sameAction(after.lastAction, d);
+  }
+
+  // A finalização anônima só cria uma partida ligada ao reset e à auditoria.
+  function validHistoryLink(d) {
+   let id = d.lastAction.historyId;
+   let safeId = id == '' ? '__no_history__' : id;
+   let path = /databases/$(database)/documents/games/$(safeId);
+   return id == '' || (!exists(path)
+    && getAfter(path).data.operatorUid == request.auth.uid
+    && getAfter(path).data.createdAt == request.time
+    && getAfter(path).data.sourceRevision == oldRevision()
+    && getAfter(path).data.auditLogId == d.lastAction.logId);
+  }
+  function validFinalizedGame(d, id) {
+   let before = get(gamePath()).data;
+   let after = getAfter(gamePath()).data;
+   return d.keys().hasOnly(['ts','a','b','sa','sb','ev','played','ra','rb','createdAt','operatorUid','sourceRevision','auditLogId'])
+    && d.keys().hasAll(['ts','a','b','sa','sb','ev','played','ra','rb','createdAt','operatorUid','sourceRevision','auditLogId'])
+    && d.operatorUid == request.auth.uid && d.createdAt == request.time
+    && d.sourceRevision == before.lrev && after.lrev == before.lrev + 1
+    && after.lastAction.uid == request.auth.uid && after.lastAction.ts == request.time
+    && after.lastAction.historyId == id && after.lastAction.logId == d.auditLogId
+    && d.ev == before.G.ev
+    && d.sa is int && d.sa >= 0 && d.sb is int && d.sb >= 0 && d.sa + d.sb == d.ev.size()
+    && d.ts is number && d.played is int && d.played >= 0 && d.played <= before.G.dur
+    && d.a is map && d.a.keys().hasOnly(['n']) && d.a.n is string && d.a.n.size() <= 100
+    && d.b is map && d.b.keys().hasOnly(['n']) && d.b.n is string && d.b.n.size() <= 100
+    && d.ra is list && d.ra.size() <= 100 && d.rb is list && d.rb.size() <= 100
+    && after.G.ev == [] && after.G.subs == [] && after.G.run == false
+    && after.G.left == before.G.dur && after.G.dur == before.G.dur
+    && after.G.a == before.G.a && after.G.b == before.G.b
+    && after.G.ra == null && after.G.rb == null;
+  }
+
+  function validLive(d) {
+   let id = d.lastAction.logId;
+   let auditPath = /databases/$(database)/documents/logs/$(id);
+   let audit = getAfter(auditPath).data;
+   return d.keys().hasOnly(['G','lrev','lastAction']) && d.keys().hasAll(['G','lrev','lastAction'])
+    && d.lrev is int && d.lrev == oldRevision() + 1
+    && validG(d.G) && validAction(d.lastAction) && validHistoryLink(d)
+    && !exists(auditPath)
+    && audit.kind == 'game' && audit.revision == d.lrev
+    && audit.u == d.lastAction.name + ' (' + d.lastAction.device + ')'
+    && sameAction(d.lastAction, audit);
+  }
+  match /app/state { allow read: if true; allow write: if isOrg(); }
+  match /live/game {
+   allow read: if true;
+   allow create, update: if (isMgr() || anonymous()) && validLive(request.resource.data);
+   allow delete: if false;
+  }
+  match /games/{id} { allow read: if true; allow create: if isMgr() || (anonymous() && validFinalizedGame(request.resource.data, id)); allow update,delete: if isOrg(); }
+  match /managers/{id} { allow read: if isMgr(); allow write: if isAdmin(); }
+  match /logs/{id} {
+   allow read: if isMgr();
+   allow create: if ((isMgr() || anonymous()) && request.resource.data.get('kind','') == 'game' && validAudit(request.resource.data,id))
+    || (isMgr() && !('kind' in request.resource.data) && request.resource.data.u == mail());
+   allow update,delete: if false;
+  }
+  match /presence/{id} {
+   function valid() { return request.resource.data.keys().hasOnly(['uid','email','name','area','lastSeen'])
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.email == mail()
+    && request.resource.data.name is string && request.resource.data.name.size() <= 100
+    && request.resource.data.area in ['Times e jogadores','Placar']
+    && request.resource.data.lastSeen == request.time; }
+   allow read: if isMgr();
+   allow create: if isMgr() && valid();
+   allow update: if isMgr() && resource.data.uid == request.auth.uid && valid();
+   allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+  }
+ }
+}
