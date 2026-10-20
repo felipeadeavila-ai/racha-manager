@@ -1,3 +1,4 @@
+import './testar-atualizacao.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {estatisticasJogo as stats} from './estatisticas-jogo.mjs';
