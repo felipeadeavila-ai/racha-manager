@@ -1,10 +1,8 @@
-// Cole aqui a configuração do app Web do Firebase
-// (Console Firebase > Configurações do projeto > Seus apps > Config).
 window.FIREBASE_CONFIG = {
-  apiKey: "COLE_AQUI",
-  authDomain: "SEU-PROJETO.firebaseapp.com",
-  projectId: "SEU-PROJETO",
-  storageBucket: "SEU-PROJETO.firebasestorage.app",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:0000000000000000"
+  apiKey: "AIzaSyD3mjIAdJSTsZK6fXG3CiX6D_YV4PxTCa8",
+  authDomain: "racha-manager-v1.firebaseapp.com",
+  projectId: "racha-manager-v1",
+  storageBucket: "racha-manager-v1.firebasestorage.app",
+  messagingSenderId: "1051998430601",
+  appId: "1:1051998430601:web:811cf6396e8533d6a9ad58"
 };
