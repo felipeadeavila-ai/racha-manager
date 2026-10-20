@@ -77,9 +77,10 @@ main .pcr{margin-top:2px;gap:4px}main .pcr select{flex:0 0 50px;padding:4px 2px;
 .nn{width:62px;text-align:center;font-weight:700;margin-left:auto}
 .st b{min-width:28px;text-align:center;font-size:20px}.st button{width:38px;height:38px;padding:0;font-size:20px}
 
-/* v1.1 — ajustes mobile */
+/* v1.2 — mobile + login Google */
 body{min-height:100dvh;-webkit-text-size-adjust:100%}
 button,select,input{touch-action:manipulation}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;font-weight:700;font-size:16px;background:#fff;color:#1f2937;border:1px solid #cbd5e1}
 @media (max-width:600px){
 .tg.k4{grid-template-columns:repeat(2,minmax(0,1fr))}
 input,select,textarea{font-size:16px}
@@ -96,7 +97,7 @@ nav button{min-width:48px;padding:8px 2px;font-size:10px}nav button b{font-size:
 }
 </style></head><body>
 <header><svg viewBox="0 0 400 120" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="#fff" stroke-width="2"><rect x="8" y="8" width="384" height="104"/><line x1="200" y1="8" x2="200" y2="112"/><circle cx="200" cy="60" r="26"/><rect x="8" y="30" width="46" height="60"/><rect x="346" y="30" width="46" height="60"/></g></svg>
-<div class="hd"><h1><span>⚽</span> Racha Manager<small>Times, jogos, gols e histórico do racha · versão 1.1</small></h1><div id="who"></div></div></header>
+<div class="hd"><h1><span>⚽</span> Racha Manager<small>Times, jogos, gols e histórico do racha · versão 1.2</small></h1><div id="who"></div></div></header>
 <main id="app"></main><nav id="nav"></nav>
 <script src="firebase-config.js" onerror="void 0"></script>
 <script>
@@ -120,7 +121,7 @@ Linha:
 const POS=['ZAG','MEI','ATA'],CORES={azul:'#2563eb',amarelo:'#eab308',vermelho:'#dc2626',verde:'#16a34a',preto:'#222',branco:'#d1d5db',laranja:'#f97316',rosa:'#ec4899',roxo:'#9333ea',cinza:'#6b7280'};
 let S={players:[],teams:[{color:'',ids:[]},{color:'',ids:[]},{color:'',ids:[]}],k:3,cfg:{thr:15,size:5,mode:'auto'},games:[],G:{a:0,b:1,dur:420,left:420,run:false,end:0,ev:[]},txt:EX,f:{m:'all',v:''}};
 let DB=null,me=null,mgr=[],logs=[],mgrOk=false,tab=0,pend=null;
-try{me=localStorage.getItem('rm_me')}catch(e){}
+me=null;
 try{const b=JSON.parse(localStorage.getItem('rm_state')||'null');if(b)Object.assign(S,b)}catch(e){}
 const $=id=>document.getElementById(id),uid=()=>Math.random().toString(36).slice(2,9);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -134,7 +135,7 @@ function setStat(s){stat=s;const e=$('stat');if(e){e.textContent=s;e.className='
 const snap=()=>({players:S.players,teams:S.teams,k:S.k,cfg:S.cfg,txt:S.txt,conf:S.conf,rev:S.rev});
 async function flush(){if(busy)return;busy=true;while(dirty){dirty=false;try{setStat('⏳ salvando…');await DB.doc('app/state').set(JSON.parse(JSON.stringify(snap())));setStat('☁ salvo')}catch(e){setStat('⚠ erro ao salvar: '+((e&&(e.code||e.message))||e))}}busy=false}
 async function flushL(){if(busyL)return;busyL=true;while(dirtyL){dirtyL=false;try{await DB.doc('live/game').set(JSON.parse(JSON.stringify({G:S.G,lrev:S.lrev})));setStat('☁ salvo')}catch(e){setStat('⚠ erro ao salvar o jogo: '+((e&&(e.code||e.message))||e))}}busyL=false}
-function sync(){const n=Date.now();if(me)S.rev=Math.max(n,(S.rev||0)+1);S.lrev=Math.max(n,(S.lrev||0)+1);try{localStorage.setItem('rm_state',JSON.stringify({...snap(),G:S.G,lrev:S.lrev}))}catch(e){}if(DB){dirtyL=true;flushL();if(me){dirty=true;flush()}}}
+function sync(){const n=Date.now();if(me)S.rev=Math.max(n,(S.rev||0)+1);S.lrev=Math.max(n,(S.lrev||0)+1);try{localStorage.setItem('rm_state',JSON.stringify({...snap(),G:S.G,lrev:S.lrev}))}catch(e){}if(DB&&me){dirtyL=true;flushL();if(can('jog')){dirty=true;flush()}}}
 function log(m){try{if(DB&&me)DB.collection('logs').add({ts:Date.now(),u:me,m}).catch(()=>{})}catch(e){}}
 function sv(m){try{sync();if(m)log(m)}catch(e){}}
 const typing=()=>['INPUT','TEXTAREA'].includes((document.activeElement||{}).tagName);
@@ -463,7 +464,7 @@ return `<div class="card"><h2>🤝 Combinações</h2><div class="row"><label>Jog
 function vHist(){const seg=`<div class="seg">${[['jogos','Jogos'],['comb','Combinações']].map(([k,l])=>`<button class="${hsub===k?'p':''}" onclick="hsub='${k}';R()">${l}</button>`).join('')}</div>`;return seg+(hsub==='comb'?vComb():vHistList())}
 const TABS=[['⏱','Jogo',vGame,0],['🏆','Ranking',vRank,0],['📜','Histórico',vHist,0],['🧤','Goleiros',vGol,'jog'],['📋','Times',vTimes,'jog'],['👥','Jogadores',vPlayers,'jog'],['🔑','Cadastros',vCad,'in'],['🧾','Logs',vLogs,0]];
 function R(){$('nav').innerHTML=TABS.map((t,i)=>`<button class="${i==tab?'on':''}" onclick="tab=${i};R()"><b>${t[0]}</b>${t[1]}</button>`).join('');{const a=document.querySelector('#nav .on');if(a&&a.scrollIntoView)a.scrollIntoView({inline:'center',block:'nearest'})}
-$('who').innerHTML=(me?`<span class="chip">👤 ${esc(me)} <button style="margin-left:8px;padding:7px 14px" onclick="out()">Sair</button></span>`:'')+`<span class="chip${stat.startsWith('⚠')?' err':''}" id="stat" style="margin-left:6px">${esc(stat)}</span><span class="chip vchip">v1.1</span>`;
+$('who').innerHTML=(me?`<span class="chip">👤 ${esc(me)} <button style="margin-left:8px;padding:7px 14px" onclick="out()">Sair</button></span>`:'')+`<span class="chip${stat.startsWith('⚠')?' err':''}" id="stat" style="margin-left:6px">${esc(stat)}</span><span class="chip vchip">v1.2</span>`;
 const t=TABS[tab];$('app').innerHTML=t[3]&&!me?vLoginX():t[3]&&!mgrOk?'<div class="card">Carregando…</div>':t[3]&&!can(t[3])?'<div class="card"><h2>🚫 Sem permissão</h2><p>A sua função não permite acessar esta aba.</p></div>':t[2]()+(t[1]==='Histórico'||t[1]==='Ranking'?wipeBox():t[1]==='Jogadores'?wipePBox():'')}
 async function getDB(){
  if(window.claude&&claude.use){return await claude.use('db')}
@@ -472,15 +473,49 @@ async function getDB(){
  const ld=u=>new Promise((ok,no)=>{const e=document.createElement('script');e.src=u;e.onload=ok;e.onerror=()=>no(new Error('falha ao carregar '+u));document.head.appendChild(e)});
  const V='10.12.2';
  await ld('https://www.gstatic.com/firebasejs/'+V+'/firebase-app-compat.js');
+ await ld('https://www.gstatic.com/firebasejs/'+V+'/firebase-auth-compat.js');
  await ld('https://www.gstatic.com/firebasejs/'+V+'/firebase-firestore-compat.js');
  if(!firebase.apps.length)firebase.initializeApp(c);
  return firebase.firestore();
 }
+const ADMIN_EMAIL='felipeadeavila@gmail.com';
+let gUser=null,unsubPriv=[];
+const gLogo='<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.9-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
+const withAdmin=l=>{l=l.filter(m=>m.id!==ADMIN_EMAIL);l.unshift({id:ADMIN_EMAIL,n:ADMIN_EMAIL,role:'admin',admin:true,fixed:true});return l};
+function mgrFix(){const prev=me;me=gUser&&mgr.find(m=>m.id===gUser.email)?gUser.email:null;if(me&&me!==prev){log('Entrou no sistema')}}
+function stopPriv(){unsubPriv.forEach(f=>{try{f()}catch(e){}});unsubPriv=[]}
+function startPriv(){
+ unsubPriv.push(DB.collection('managers').onSnapshot(q=>{mgr=withAdmin(q.docs.map(d=>({...d.data(),id:d.id})));mgrOk=true;mgrFix();softR()},()=>{mgr=gUser&&gUser.email===ADMIN_EMAIL?withAdmin([]):[];mgrOk=true;mgrFix();softR()}));
+ unsubPriv.push(DB.collection('logs').orderBy('ts','desc').limit(1000).onSnapshot(q=>{logs=q.docs.map(d=>d.data());softR()},()=>{logs=[]}));
+}
+function initAuth(){
+ if(!(window.firebase&&firebase.auth)){mgrOk=true;R();return}
+ firebase.auth().onAuthStateChanged(u=>{
+  stopPriv();gUser=u&&u.email?{email:u.email.toLowerCase(),name:u.displayName||''}:null;
+  if(gUser){mgrOk=false;startPriv()}else{mgr=[];mgrOk=true;logs=[];me=null}
+  R()});
+}
+async function gLogin(){let p;try{p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});await firebase.auth().signInWithPopup(p)}catch(e){const c=e&&e.code;if(p&&(c==='auth/popup-blocked'||c==='auth/operation-not-supported-in-this-environment'))firebase.auth().signInWithRedirect(p);else if(c!=='auth/popup-closed-by-user'&&c!=='auth/cancelled-popup-request')toast('Não foi possível entrar: '+(c||(e&&e.message)||e))}}
+function out(){if(me)log('Saiu do sistema');me=null;try{firebase.auth().signOut()}catch(e){}R()}
+function vLogin(){
+ if(!DB)return '<div class="card"><h2>Acesso indisponível</h2><p>O Firebase não está configurado. Confira o arquivo firebase-config.js.</p></div>';
+ if(!(window.firebase&&firebase.auth))return '<div class="card"><h2>Login indisponível</h2><p>Abra o Racha Manager pelo endereço oficial do site para entrar com o Google.</p></div>';
+ if(gUser&&!mgrOk)return '<div class="card">Verificando permissão…</div>';
+ if(gUser&&!me)return `<div class="card"><h2>🚫 Conta sem permissão</h2><p>A conta <b>${esc(gUser.email)}</b> ainda não foi autorizada. Peça ao administrador para cadastrar esse e-mail em Cadastros.</p><div class="row"><button class="p" onclick="out()">Sair e usar outra conta</button></div></div>`;
+ return `<div class="card"><h2>🔐 Acesso dos gestores</h2><p class="mut">Entre com a sua conta Google. Só e-mails cadastrados pelo administrador conseguem editar jogadores, times e jogos.</p><button class="gbtn" onclick="gLogin()">${gLogo} Entrar com Google</button></div>`}
+function vLoginX(){return vLogin()}
+function vCad(){const opts=sel=>Object.keys(ROLES).map(k=>`<option value="${k}" ${k===sel?'selected':''}>${esc(rn(k))}</option>`).join('');
+ let h=`<div class="card"><h3>👤 Minha conta</h3><p>${esc(gUser?gUser.email:me)} — <b>${esc(rn(myRole()||'org'))}</b></p><div class="row"><button onclick="out()">Sair</button></div></div>`;
+ if(can('cad'))h+=`<div class="card"><h2>🔑 Gestores autorizados</h2>${mgr.map(m=>`<div class="pl" style="flex-wrap:wrap"><b style="word-break:break-all">${esc(m.id)}</b>${m.fixed?'<span class="tag">ADMIN FIXO</span>':`<select onchange="setRole('${esc(m.id)}',this.value)">${opts(roleOf(m))}</select><button class="d" onclick="delM('${esc(m.id)}')">Remover</button>`}</div>`).join('')}</div>
+<div class="card"><h3>Autorizar novo gestor</h3><div class="row"><input class="g" id="nu" type="email" placeholder="e-mail Google" autocapitalize="none"><select id="nr">${opts('org')}</select><button class="p" onclick="addM()">Autorizar</button></div><p class="mut">${Object.values(ROLES).map(esc).join('<br>')}</p></div>`;
+ return h}
+async function addM(){if(!can('cad')){toast('Apenas administradores');return}const u=$('nu').value.trim().toLowerCase(),r=$('nr').value;if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u)){toast('Informe um e-mail válido');return}if(mgr.find(m=>m.id===u)){toast('Esse e-mail já está cadastrado');return}try{await DB.collection('managers').doc(u).set({n:u,role:r,admin:r==='admin',ts:Date.now()});log('Autorizou '+u+' como '+rn(r));toast('Gestor autorizado');R()}catch(e){toast('Erro ao salvar: '+((e&&e.code)||e))}}
+function setRole(u,r){if(!can('cad')){toast('Apenas administradores');R();return}const m=mgr.find(x=>x.id===u);if(!m||m.fixed)return;DB.collection('managers').doc(u).set({n:u,role:r,admin:r==='admin',ts:m.ts||Date.now()}).then(()=>log('Mudou a função de '+u+' para '+rn(r))).catch(e=>toast('Erro: '+((e&&e.code)||e)))}
+async function delM(u){if(!can('cad')){toast('Apenas administradores');return}const m=mgr.find(x=>x.id===u);if(!m||m.fixed){toast('O administrador fixo não pode ser removido');return}if(u===me){toast('Você não pode remover a si mesmo');return}if(!await cf('Remover '+u+'?'))return;DB.collection('managers').doc(u).delete().then(()=>log('Removeu o gestor '+u)).catch(e=>toast('Erro: '+((e&&e.code)||e)))}
 setInterval(tick,250);R();
 (async()=>{try{DB=await getDB()}catch(e){}R();if(!DB){setStat('⚠ modo local: sem sincronização (configure o Firebase em firebase-config.js)');R();return}
 DB.doc('app/state').onSnapshot(s=>{if(s.exists){const d=s.data();if((d.rev||0)>(S.rev||0)){['players','teams','k','cfg','conf'].forEach(k=>{if(d[k]!==undefined)S[k]=d[k]});S.rev=d.rev||0;if(d.txt!==undefined&&!typing())S.txt=d.txt;softR()}else if((S.rev||0)>(d.rev||0)&&me&&!dirty)sync()}else if(me&&!s.metadata.fromCache)sync()},e=>setStat('⚠ erro de leitura: '+((e&&e.code)||'')));
 DB.doc('live/game').onSnapshot(s=>{if(s.exists){const d=s.data();if((d.lrev||0)>(S.lrev||0)){S.G=d.G;S.lrev=d.lrev;softR()}}else if(!s.metadata.fromCache){dirtyL=true;flushL()}},e=>setStat('⚠ erro de leitura do jogo: '+((e&&e.code)||'')));
 DB.collection('games').orderBy('ts','desc').onSnapshot(q=>{S.games=q.docs.map(d=>({...d.data(),id:d.id}));softR()},()=>{});
-DB.collection('logs').orderBy('ts','desc').limit(1000).onSnapshot(q=>{logs=q.docs.map(d=>d.data());softR()},()=>{});
-DB.collection('managers').onSnapshot(q=>{mgr=q.docs.map(d=>({...d.data(),id:d.id}));mgrOk=true;if(me&&mgr.length&&!mgr.find(m=>m.id===me))me=null;softR()},()=>{mgrOk=true;softR()})})();
+initAuth()})();
 </script></body></html>
