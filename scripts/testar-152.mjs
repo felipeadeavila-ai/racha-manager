@@ -1,0 +1,12 @@
+import './testar-atualizacao.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {estatisticasJogo as stats} from './estatisticas-jogo.mjs';
+const p={id:'lauro',name:'Lauro'};
+const eventos=[{s:'Lauro',sId:'lauro',a:'Beto',aId:'beto'},{s:'Lauro',sId:'lauro',a:null,aId:null},{s:'Beto',sId:'beto',a:'Lauro',aId:'lauro'}];
+test('Lauro: dois gols e uma assistência',()=>assert.deepEqual(stats(eventos,p),{gols:2,assistencias:1}));
+test('desfazer retira também a assistência',()=>assert.deepEqual(stats(eventos.slice(0,-1),p),{gols:2,assistencias:0}));
+test('nova partida começa zerada',()=>assert.deepEqual(stats([],p),{gols:0,assistencias:0}));
+test('compatível com lances antigos sem IDs',()=>assert.deepEqual(stats([{s:'Lauro',a:null},{s:'Beto',a:'Lauro'}],p),{gols:1,assistencias:1}));
+test('IDs distinguem homônimos em lances novos',()=>assert.deepEqual(stats([{s:'Lauro',sId:'outro',a:'Lauro',aId:'outra'}],p),{gols:0,assistencias:0}));
+test('ID preserva contagem se o nome muda',()=>assert.deepEqual(stats(eventos,{id:'lauro',name:'Lauro Silva'}),{gols:2,assistencias:1}));

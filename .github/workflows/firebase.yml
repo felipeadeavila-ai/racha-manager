@@ -1,0 +1,79 @@
+name: Racha Manager - validar e publicar
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: racha-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Testar contagem de gols e assistencias
+        run: node --test scripts/testar-152.mjs
+      - name: Gerar interface 1.5.2
+        run: node scripts/preparar-152.mjs
+      - name: Conferir site e JavaScript
+        run: node scripts/validar-site.mjs
+      - name: Instalar Firebase CLI
+        run: npm install --global firebase-tools
+      - name: Compilar regras em emulador isolado
+        run: firebase emulators:exec --only firestore --project demo-racha-manager --non-interactive 'node -e "console.log(\"Emulador iniciado com as regras do projeto\")"'
+
+  publicar:
+    needs: validar
+    if: github.ref == 'refs/heads/main' && github.repository == 'felipeadeavila-ai/racha-manager' && vars.FIREBASE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: producao
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Gerar interface 1.5.2
+        run: node scripts/preparar-152.mjs
+      - name: Conferir site antes de publicar
+        run: node scripts/validar-site.mjs
+      - name: Instalar Firebase CLI
+        run: npm install --global firebase-tools
+      - name: Preparar credencial sem exibir seu conteúdo
+        env:
+          FIREBASE_DEPLOY_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RACHA_MANAGER_V1 }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const raw = process.env.FIREBASE_DEPLOY_JSON;
+          if (!raw) throw new Error('Configure o secret FIREBASE_SERVICE_ACCOUNT_RACHA_MANAGER_V1.');
+          const credential = JSON.parse(raw);
+          if (credential.type !== 'service_account' || credential.project_id !== 'racha-manager-v1' || !credential.private_key) {
+            throw new Error('A credencial não corresponde à conta de serviço do projeto esperado.');
+          }
+          const file = path.join(process.env.RUNNER_TEMP, 'racha-firebase-credential.json');
+          fs.writeFileSync(file, raw, {mode: 0o600});
+          fs.appendFileSync(process.env.GITHUB_ENV, `GOOGLE_APPLICATION_CREDENTIALS=${file}\n`);
+          NODE
+      - name: Publicar Hosting e regras
+        run: firebase deploy --only hosting,firestore:rules --project racha-manager-v1 --non-interactive
+      - name: Remover credencial temporária
+        if: always()
+        run: rm -f "$RUNNER_TEMP/racha-firebase-credential.json"
